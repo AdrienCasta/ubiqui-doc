@@ -8,7 +8,7 @@ export default class Result<T, E> {
     return new Result<T, never>(value);
   }
 
-  static Fail<E>(error: E): Result<never, E> {
+  static Failure<E>(error: E): Result<never, E> {
     return new Result<never, E>(undefined, error);
   }
 

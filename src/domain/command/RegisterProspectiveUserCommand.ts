@@ -1,9 +1,15 @@
 import { UUID } from 'crypto';
 
 export default interface RegisterProspectiveUserCommand {
-  id?: UUID;
-  email: string;
-  firstName: string;
-  lastName: string;
-  password: string;
+  user: {
+    id?: UUID;
+    email: string;
+    firstName: string;
+    lastName: string;
+    password: string;
+  };
+  confirmation: {
+    token: string;
+    expiresAt: Date;
+  };
 }
