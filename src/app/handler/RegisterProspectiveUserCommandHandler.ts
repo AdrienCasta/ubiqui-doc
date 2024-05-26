@@ -7,6 +7,7 @@ import CommandHandler from '../../shared/CommandHandler';
 import EmailConfirmationTokenRepository from '../../domain/repository/EmailConfirmationTokenRepository';
 import SendConfirmationEmailService from '../../domain/service/SendConfirmationEmailService';
 import Clock from '../../shared/Clock';
+import EmailVerificationTokenService from '../services/EmailVerificationTokenService';
 
 export default class RegisterProspectiveUserCommandHandler
   implements
@@ -16,14 +17,13 @@ export default class RegisterProspectiveUserCommandHandler
     private readonly userRepository: UserRepository,
     private readonly emailConfirmationTokenRepository: EmailConfirmationTokenRepository,
     private readonly sendConfirmationEmailService: SendConfirmationEmailService,
-    private readonly clock: Clock,
+    private readonly emailVerificationTokenService: EmailVerificationTokenService,
   ) {}
 
   async execute(
     registerProspectiveUserCommand: RegisterProspectiveUserCommand,
   ): Promise<Result<User, Error>> {
-    const { user: prospectiveUser, confirmation } =
-      registerProspectiveUserCommand;
+    const { user: prospectiveUser } = registerProspectiveUserCommand;
 
     const userByEmailExist = await this.userRepository.findByEmail(
       prospectiveUser.email,
@@ -60,11 +60,11 @@ export default class RegisterProspectiveUserCommandHandler
     };
     await this.userRepository.createUser(user);
 
-    const token = confirmation.token ?? randomUUID();
+    const { token, expiresAt } = this.emailVerificationTokenService.execute();
 
     await this.emailConfirmationTokenRepository.save({
       userId: user.id,
-      expiresAt: confirmation.expiresAt ?? expireIn24Hours(this.clock.now()),
+      expiresAt,
       token,
     });
 

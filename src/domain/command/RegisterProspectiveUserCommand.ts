@@ -8,8 +8,4 @@ export default interface RegisterProspectiveUserCommand {
     lastName: string;
     password: string;
   };
-  confirmation: {
-    token: string;
-    expiresAt: Date;
-  };
 }

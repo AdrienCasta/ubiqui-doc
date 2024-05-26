@@ -13,6 +13,7 @@ import SendConfirmationEmailService from '../../domain/service/SendConfirmationE
 import RegisterProspectiveUserCommandHandler from '../handler/RegisterProspectiveUserCommandHandler';
 import Result from '../../shared/Result';
 import { MockInstance, vi } from 'vitest';
+import EmailVerificationTokenService from '../services/EmailVerificationTokenService';
 
 describe('ResendEmailVerification', () => {
   let sendConfirmationEmailService: FakeSendConfirmationEmailService;
@@ -25,6 +26,7 @@ describe('ResendEmailVerification', () => {
   let registerProspectiveUserCommand: RegisterProspectiveUserCommand;
   let resendEmailVerification: ResendEmailVerification;
   let sendConfirmationEmailServiceSpy: MockInstance;
+  let emailVerificationTokenService: EmailVerificationTokenService;
 
   const clock = new SystemClock();
 
@@ -35,7 +37,12 @@ describe('ResendEmailVerification', () => {
       'execute',
     );
     userRepository = new InMemoryUserRepository();
-    const oneMinuteFromNow = new Date(clock.now().getTime() + 60000);
+    const oneMinuteFromNow = (date: Date) => new Date(date.getTime() + 60000);
+    emailVerificationTokenService = new EmailVerificationTokenService(
+      () => 'token',
+      oneMinuteFromNow,
+      clock,
+    );
     registerProspectiveUserCommand = {
       user: {
         id: randomUUID(),
@@ -43,10 +50,6 @@ describe('ResendEmailVerification', () => {
         firstName: 'John',
         lastName: 'Doe',
         password: 'SecurePass123!',
-      },
-      confirmation: {
-        token: 'token',
-        expiresAt: oneMinuteFromNow,
       },
     };
     emailConfirmationTokenRepository =
@@ -56,14 +59,14 @@ describe('ResendEmailVerification', () => {
         userRepository,
         emailConfirmationTokenRepository,
         sendConfirmationEmailService,
-        clock,
+        emailVerificationTokenService,
       );
     registerProspectiveUserCommandHandler =
       new RegisterProspectiveUserCommandHandler(
         userRepository,
         emailConfirmationTokenRepository,
         sendConfirmationEmailService,
-        clock,
+        emailVerificationTokenService,
       );
     registerProspectiveUser = new RegisterProspectiveUser(
       registerProspectiveUserCommandHandler,
@@ -106,7 +109,7 @@ describe('ResendEmailVerification', () => {
 
     await confirmProspectiveUserEmail.execute(
       registerProspectiveUserCommand.user.email,
-      registerProspectiveUserCommand.confirmation.token,
+      'token',
     );
 
     expect(sendConfirmationEmailServiceSpy).toHaveBeenCalledTimes(1);
@@ -139,11 +142,10 @@ class ResendEmailVerificationCommandHandler {
     private readonly userRepository: UserRepository,
     private readonly emailConfirmationTokenRepository: EmailConfirmationTokenRepository,
     private readonly sendConfirmationEmailService: SendConfirmationEmailService,
-    private readonly clock: SystemClock,
+    private readonly emailVerificationTokenService: EmailVerificationTokenService,
   ) {}
 
   async execute(command: ResendEmailVerificationCommand) {
-    const token = generateToken();
     const user = await this.userRepository.findByEmail(command.email);
 
     if (!user) {
@@ -154,10 +156,12 @@ class ResendEmailVerificationCommandHandler {
       return Result.Failure(new UserAlreadyConfirmedError());
     }
 
+    const { token, expiresAt } = this.emailVerificationTokenService.execute();
+
     await this.emailConfirmationTokenRepository.save({
       userId: user.id,
       token,
-      expiresAt: new Date(this.clock.now().getTime() + 60000),
+      expiresAt,
     });
     return this.sendConfirmationEmailService.execute(command.email, token);
   }
@@ -177,8 +181,4 @@ class UserAlreadyConfirmedError extends Error {
 
 interface ResendEmailVerificationCommand {
   email: string;
-}
-
-function generateToken() {
-  return 'token';
 }

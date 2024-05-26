@@ -13,6 +13,7 @@ import SystemClock from '../../shared/SystemClock';
 import RegisterProspectiveUserCommandHandler, {
   RegisterProspectiveUserCommandHandlerErrors,
 } from '../handler/RegisterProspectiveUserCommandHandler';
+import EmailVerificationTokenService from '../services/EmailVerificationTokenService';
 
 const clock = new SystemClock();
 let registeredProspectiveUserId: UUID;
@@ -23,9 +24,15 @@ let registerProspectiveUserCommandHandler: RegisterProspectiveUserCommandHandler
 let registerProspectiveUser: RegisterProspectiveUser;
 let sendConfirmationEmailService: SendConfirmationEmailService;
 let sendConfirmationEmailSpy: MockInstance;
+let emailVerificationTokenService: EmailVerificationTokenService;
 
 describe('RegisterProspectiveUser', () => {
   beforeEach(() => {
+    emailVerificationTokenService = new EmailVerificationTokenService(
+      () => 'token',
+      (date: Date) => date,
+      clock,
+    );
     sendConfirmationEmailService = new FakeSendConfirmationEmailService();
     sendConfirmationEmailSpy = vi.spyOn(
       sendConfirmationEmailService,
@@ -39,7 +46,7 @@ describe('RegisterProspectiveUser', () => {
         userRepository,
         emailConfirmationTokenRepository,
         sendConfirmationEmailService,
-        clock,
+        emailVerificationTokenService,
       );
     registerProspectiveUser = new RegisterProspectiveUser(
       registerProspectiveUserCommandHandler,
@@ -96,10 +103,6 @@ describe('RegisterProspectiveUser', () => {
           firstName: 'John',
           lastName: 'Doe',
           password: 'SecurePass123!',
-        },
-        confirmation: {
-          token: 'token',
-          expiresAt: new Date(),
         },
       };
     });

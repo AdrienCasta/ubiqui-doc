@@ -8,6 +8,7 @@ import RegisterProspectiveUser from './RegisterProspectiveUser';
 import InMemoryEmailConfirmationTokenRepository from '../../infra/repository/InMemoryEmailConfirmationTokenRepository';
 import ConfirmProspectiveUserEmail from './ConfirmProspectiveUserEmail';
 import SystemClock from '../../shared/SystemClock';
+import EmailVerificationTokenService from '../services/EmailVerificationTokenService';
 
 describe('ConfirmProspectiveUserEmail', () => {
   let sendConfirmationEmailService: FakeSendConfirmationEmailService;
@@ -16,11 +17,17 @@ describe('ConfirmProspectiveUserEmail', () => {
   let registerProspectiveUserCommandHandler: RegisterProspectiveUserCommandHandler;
   let registerProspectiveUser: RegisterProspectiveUser;
   let confirmProspectiveUserEmail: ConfirmProspectiveUserEmail;
+  let emailVerificationTokenService: EmailVerificationTokenService;
 
   const clock = new SystemClock();
 
   beforeEach(async () => {
     sendConfirmationEmailService = new FakeSendConfirmationEmailService();
+    emailVerificationTokenService = new EmailVerificationTokenService(
+      () => 'token',
+      () => new Date(),
+      clock,
+    );
     userRepository = new InMemoryUserRepository();
     emailConfirmationTokenRepository =
       new InMemoryEmailConfirmationTokenRepository();
@@ -29,7 +36,7 @@ describe('ConfirmProspectiveUserEmail', () => {
         userRepository,
         emailConfirmationTokenRepository,
         sendConfirmationEmailService,
-        clock,
+        emailVerificationTokenService,
       );
     registerProspectiveUser = new RegisterProspectiveUser(
       registerProspectiveUserCommandHandler,
@@ -42,7 +49,6 @@ describe('ConfirmProspectiveUserEmail', () => {
   });
 
   it('confirms prospective user email unexpired token', async () => {
-    const oneMinuteFromNow = new Date(clock.now().getTime() + 60000);
     const registerProspectiveUserCommand = {
       user: {
         id: randomUUID(),
@@ -51,15 +57,11 @@ describe('ConfirmProspectiveUserEmail', () => {
         lastName: 'Doe',
         password: 'SecurePass123!',
       },
-      confirmation: {
-        token: 'token',
-        expiresAt: oneMinuteFromNow,
-      },
     };
     await registerProspectiveUser.execute(registerProspectiveUserCommand);
     const confirmationResult = await confirmProspectiveUserEmail.execute(
       registerProspectiveUserCommand.user.email,
-      registerProspectiveUserCommand.confirmation.token,
+      'token',
     );
 
     expect(confirmationResult.isSuccess()).toBe(true);
@@ -71,7 +73,16 @@ describe('ConfirmProspectiveUserEmail', () => {
   });
 
   it('does not confirm prospective user email because all token expired', async () => {
-    const oneMinuteAgo = new Date(clock.now().getTime() - 60000);
+    const expired1MinAgo = (date: Date) => new Date(date.getTime() - 60000);
+
+    registerProspectiveUser = new RegisterProspectiveUser(
+      new RegisterProspectiveUserCommandHandler(
+        userRepository,
+        emailConfirmationTokenRepository,
+        sendConfirmationEmailService,
+        new EmailVerificationTokenService(() => 'token', expired1MinAgo, clock),
+      ),
+    );
 
     const registerProspectiveUserCommand = {
       user: {
@@ -80,10 +91,6 @@ describe('ConfirmProspectiveUserEmail', () => {
         firstName: 'John',
         lastName: 'Doe',
         password: 'SecurePass123!',
-      },
-      confirmation: {
-        token: 'token',
-        expiresAt: oneMinuteAgo,
       },
     };
     await registerProspectiveUser.execute(registerProspectiveUserCommand);
