@@ -6,7 +6,6 @@ import UserRepository from '../../domain/repository/UserRepository';
 import CommandHandler from '../../shared/CommandHandler';
 import EmailConfirmationTokenRepository from '../../domain/repository/EmailConfirmationTokenRepository';
 import SendConfirmationEmailService from '../../domain/service/SendConfirmationEmailService';
-import Clock from '../../shared/Clock';
 import EmailVerificationTokenService from '../services/EmailVerificationTokenService';
 
 export default class RegisterProspectiveUserCommandHandler
