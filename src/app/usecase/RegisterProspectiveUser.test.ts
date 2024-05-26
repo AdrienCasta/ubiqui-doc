@@ -1,13 +1,11 @@
 import { randomUUID, UUID } from 'crypto';
 import { MockInstance, vi } from 'vitest';
-import SendConfirmationEmailService from '../../domain/service/SendConfirmationEmailService';
 import type RegisterProspectiveUserCommand from '../../domain/command/RegisterProspectiveUserCommand';
 import type ConfirmProspectiveUserCommand from '../../domain/command/ConfirmProspectiveUserCommand';
 import InMemoryUserRepository from '../../infra/repository/InMemoryUserRepository';
 import FakeSendConfirmationEmailService from '../../infra/service/FakeSendConfirmationEmailService';
 import UserRepository from '../../domain/repository/UserRepository';
 import RegisterProspectiveUser from './RegisterProspectiveUser';
-import EmailConfirmationTokenRepository from '../../domain/repository/EmailConfirmationTokenRepository';
 import InMemoryEmailConfirmationTokenRepository from '../../infra/repository/InMemoryEmailConfirmationTokenRepository';
 import SystemClock from '../../shared/SystemClock';
 import RegisterProspectiveUserCommandHandler, {
@@ -19,37 +17,30 @@ const clock = new SystemClock();
 let registeredProspectiveUserId: UUID;
 let registerProspectiveUserCommand: RegisterProspectiveUserCommand;
 let userRepository: UserRepository;
-let emailConfirmationTokenRepository: EmailConfirmationTokenRepository;
-let registerProspectiveUserCommandHandler: RegisterProspectiveUserCommandHandler;
 let registerProspectiveUser: RegisterProspectiveUser;
-let sendConfirmationEmailService: SendConfirmationEmailService;
 let sendConfirmationEmailSpy: MockInstance;
-let emailVerificationTokenService: EmailVerificationTokenService;
 
 describe('RegisterProspectiveUser', () => {
   beforeEach(() => {
-    emailVerificationTokenService = new EmailVerificationTokenService(
-      () => 'token',
-      (date: Date) => date,
-      clock,
-    );
-    sendConfirmationEmailService = new FakeSendConfirmationEmailService();
+    const sendConfirmationEmailService = new FakeSendConfirmationEmailService();
     sendConfirmationEmailSpy = vi.spyOn(
       sendConfirmationEmailService,
       'execute',
     );
+
     userRepository = new InMemoryUserRepository();
-    emailConfirmationTokenRepository =
-      new InMemoryEmailConfirmationTokenRepository();
-    registerProspectiveUserCommandHandler =
+
+    registerProspectiveUser = new RegisterProspectiveUser(
       new RegisterProspectiveUserCommandHandler(
         userRepository,
-        emailConfirmationTokenRepository,
+        new InMemoryEmailConfirmationTokenRepository(),
         sendConfirmationEmailService,
-        emailVerificationTokenService,
-      );
-    registerProspectiveUser = new RegisterProspectiveUser(
-      registerProspectiveUserCommandHandler,
+        new EmailVerificationTokenService(
+          () => 'token',
+          (date: Date) => date,
+          clock,
+        ),
+      ),
     );
   });
 
@@ -64,10 +55,6 @@ describe('RegisterProspectiveUser', () => {
           lastName: 'Doe',
           password: 'SecurePass123!',
         },
-        confirmation: {
-          token: 'token',
-          expiresAt: new Date(),
-        },
       };
     });
 
@@ -75,7 +62,7 @@ describe('RegisterProspectiveUser', () => {
       expect(sendConfirmationEmailSpy).toHaveBeenCalledTimes(1);
       expect(sendConfirmationEmailSpy).toHaveBeenCalledWith(
         registerProspectiveUserCommand.user.email,
-        registerProspectiveUserCommand.confirmation.token,
+        'token',
       );
     });
 
